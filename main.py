@@ -6,7 +6,7 @@ from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTyp
 # ==========================================
 # ТВОИ ДАННЫЕ
 # ==========================================
-TELEGRAM_TOKEN = "8669656221:AAHr9dzCxh57AVHNLebN6wzVV4kn03jx7n4"
+TELEGRAM_TOKEN = "8730724184:AAFFz8J0yjkcGzGdit1GAUo1BggGbn6TBlM"
 GROQ_API_KEY = "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"
 
 # Твоя выбранная сверхбыстрая модель
