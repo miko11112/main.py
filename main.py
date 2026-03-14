@@ -1,59 +1,64 @@
-import asyncio
 import logging
-import google.generativeai as genai
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
+import aiohttp
+from telegram import Update
+from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
-# 1. НАСТРОЙКА GEMINI
-# Твой ключ, который ты получил
-genai.configure(api_key="AIzaSyDDQ4bVxfooF1c7vmEO-fia0soZ4fzioxM")
-
-# Настраиваем модель (добавляем ей "личность")
-model = genai.GenerativeModel(
-    model_name='gemini-1.5-flash',
-    system_instruction="Ты — Gemini, умный и дружелюбный ИИ. Отвечай на русском языке, будь лаконичен и полезен."
-)
-
-# 2. НАСТРОЙКА TELEGRAM
-# Вставь сюда токен, который дал @BotFather
+# ==========================================
+# ТВОИ ДАННЫЕ
+# ==========================================
 TELEGRAM_TOKEN = "8669656221:AAHr9dzCxh57AVHNLebN6wzVV4kn03jx7n4"
+GROQ_API_KEY = "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"
 
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher()
+# Твоя выбранная сверхбыстрая модель
+MODEL_ID = "llama-3.1-8b-instant"
 
-# Создаем чат с историей сообщений
-chat_session = model.start_chat(history=[])
-
-# Обработка команды /start
-@dp.message(Command("start"))
-async def start_handler(message: types.Message):
-    await message.answer("Привет я ии морфина")
-
-# Обработка всех входящих текстовых сообщений
-@dp.message()
-async def message_handler(message: types.Message):
-    # Показываем статус "печатает...", пока нейросеть думает
-    await bot.send_chat_action(message.chat.id, action="typing")
+# ==========================================
+# ОБРАБОТЧИК СООБЩЕНИЙ
+# ==========================================
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
+    
+    # Показываем статус "печатает..." в Телеге
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action='typing')
+    
+    # Стандартный адрес Groq API
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {
+        "model": MODEL_ID,
+        "messages": [
+            {"role": "system", "content": "Ты — Морфин, умный и дерзкий ИИ-помощник. Отвечай на русском языке коротко и по делу."},
+            {"role": "user", "content": user_message}
+        ],
+        "max_tokens": 1000,
+        "temperature": 0.7
+    }
     
     try:
-        # Отправляем текст в Gemini
-        response = chat_session.send_message(message.text)
-        
-        # Отправляем ответ пользователю (поддерживаем Markdown)
-        await message.answer(response.text, parse_mode="Markdown")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    answer = data["choices"][0]["message"]["content"].strip()
+                    await update.message.reply_text(answer)
+                else:
+                    error_text = await resp.text()
+                    await update.message.reply_text(f"❌ Ошибка Groq ({resp.status}):\n{error_text}")
     except Exception as e:
-        logging.error(f"Ошибка: {e}")
-        await message.answer("Произошла ошибка при обращении к нейросети. Попробуй позже.")
+        await update.message.reply_text(f"❌ Системная ошибка сети:\n{e}")
 
-# Запуск бота
-async def main():
-    print("Бот успешно запущен и готов к работе!")
-    await dp.start_polling(bot)
-
-if __name__ == "__main__":
-    # Настраиваем логирование, чтобы видеть ошибки в консоли
+# ==========================================
+# ЗАПУСК
+# ==========================================
+if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Бот выключен")
+    print(">>> Бот запущен через сверхбыстрый Groq с моделью Llama 3.1!")
+    
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
